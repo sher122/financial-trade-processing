@@ -15,18 +15,15 @@ def create_database():
 
     print("Creating database...")
 
-    # Create the database directory if it doesn't exist
     DATABASE_PATH.parent.mkdir(
         parents=True,
         exist_ok=True
     )
 
-    # Connect to SQLite
     with sqlite3.connect(DATABASE_PATH) as connection:
 
         cursor = connection.cursor()
 
-        # Create trades table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS trades (
                 trade_id TEXT PRIMARY KEY,
@@ -47,25 +44,57 @@ def save_valid_trades(df: pd.DataFrame):
     """
     Save valid trades into the SQLite database.
 
-    Args:
-        df: DataFrame containing valid trades.
+    Existing trade IDs are skipped.
     """
 
     if df.empty:
         print("\nNo valid trades to save.")
         return
 
+    inserted_count = 0
+    skipped_count = 0
+
     with sqlite3.connect(DATABASE_PATH) as connection:
 
-        df.to_sql(
-            name="trades",
-            con=connection,
-            if_exists="append",
-            index=False
-        )
+        cursor = connection.cursor()
+
+        for _, trade in df.iterrows():
+
+            try:
+
+                cursor.execute("""
+                    INSERT INTO trades (
+                        trade_id,
+                        symbol,
+                        quantity,
+                        price,
+                        trade_date,
+                        trader
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    trade["trade_id"],
+                    trade["symbol"],
+                    trade["quantity"],
+                    trade["price"],
+                    trade["trade_date"],
+                    trade["trader"]
+                ))
+
+                inserted_count += 1
+
+            except sqlite3.IntegrityError:
+
+                skipped_count += 1
+
+        connection.commit()
 
     print(
-        f"\n{len(df)} valid trades saved to database."
+        f"\nInserted trades : {inserted_count}"
+    )
+
+    print(
+        f"Skipped trades  : {skipped_count}"
     )
 
 
