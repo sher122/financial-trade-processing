@@ -1,26 +1,34 @@
 import pandas as pd
+
+
 def check_duplicate_trades(df: pd.DataFrame) -> pd.DataFrame:
     """
     Return all trades that have duplicate trade IDs.
     """
 
-    duplicates = df[df.duplicated(subset="trade_id", keep=False)]
+    return df[
+        df.duplicated(
+            subset="trade_id",
+            keep=False
+        )
+    ]
 
-    return duplicates
 
 def check_negative_quantity(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Return trades where quantity is less than or equal to zero
+    Return trades where quantity is less than or equal to zero.
     """
 
     return df[df["quantity"] <= 0]
 
+
 def check_negative_price(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Return trades where price is less than or equal to zero
+    Return trades where price is less than or equal to zero.
     """
 
     return df[df["price"] <= 0]
+
 
 def check_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -32,7 +40,10 @@ def check_missing_values(df: pd.DataFrame) -> pd.DataFrame:
 
 def validate_trades(df: pd.DataFrame) -> dict:
     """
-    Run all validation checks and return the results
+    Run all trade validation checks.
+
+    Returns:
+        Dictionary containing the results of each validation check.
     """
 
     return {

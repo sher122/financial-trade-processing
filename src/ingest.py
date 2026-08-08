@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import pandas as pd
 
 
@@ -7,10 +8,10 @@ def load_trades(file_path: str) -> pd.DataFrame:
     Load trade data from a CSV file.
 
     Args:
-        file_path (str): Path to the CSV file.
+        file_path: Path to the CSV file.
 
     Returns:
-        pd.DataFrame: Loaded trade data.
+        A pandas DataFrame containing the trade data.
 
     Raises:
         FileNotFoundError: If the CSV file does not exist.
@@ -20,7 +21,9 @@ def load_trades(file_path: str) -> pd.DataFrame:
     csv_path = Path(file_path)
 
     if not csv_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {csv_path}")
+        raise FileNotFoundError(
+            f"CSV file not found: {csv_path}"
+        )
 
     try:
         dataframe = pd.read_csv(csv_path)
@@ -30,5 +33,10 @@ def load_trades(file_path: str) -> pd.DataFrame:
 
         return dataframe
 
-    except Exception as error:
-        raise Exception(f"Error reading CSV: {error}")
+    except pd.errors.EmptyDataError:
+        raise ValueError("CSV file contains no data.")
+
+    except pd.errors.ParserError as error:
+        raise ValueError(
+            f"Unable to parse CSV file: {error}"
+        )
