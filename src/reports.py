@@ -9,9 +9,35 @@ from src.database import DATABASE_PATH
 REPORTS_DIRECTORY = Path("reports")
 
 
-def get_total_trades():
+def get_batch_summary(batch_id):
     """
-    Return the total number of valid trades.
+    Return summary information for a batch.
+    """
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+
+        dataframe = pd.read_sql_query(
+            """
+            SELECT
+                batch_id,
+                source_file,
+                processed_at,
+                total_records,
+                valid_records,
+                invalid_records
+            FROM batches
+            WHERE batch_id = ?
+            """,
+            connection,
+            params=(batch_id,)
+        )
+
+    return dataframe
+
+
+def get_total_trades(batch_id):
+    """
+    Return number of valid trades in a batch.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -21,16 +47,15 @@ def get_total_trades():
         cursor.execute("""
             SELECT COUNT(*)
             FROM trades
-        """)
+            WHERE batch_id = ?
+        """, (batch_id,))
 
-        result = cursor.fetchone()
-
-    return result[0]
+        return cursor.fetchone()[0]
 
 
-def get_total_quantity():
+def get_total_quantity(batch_id):
     """
-    Return total quantity of valid trades.
+    Return total quantity for a batch.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -40,16 +65,17 @@ def get_total_quantity():
         cursor.execute("""
             SELECT SUM(quantity)
             FROM trades
-        """)
+            WHERE batch_id = ?
+        """, (batch_id,))
 
-        result = cursor.fetchone()
+        result = cursor.fetchone()[0]
 
-    return result[0] or 0
+    return result or 0
 
 
-def get_average_price():
+def get_average_price(batch_id):
     """
-    Return average trade price.
+    Return average trade price for a batch.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -59,14 +85,15 @@ def get_average_price():
         cursor.execute("""
             SELECT AVG(price)
             FROM trades
-        """)
+            WHERE batch_id = ?
+        """, (batch_id,))
 
-        result = cursor.fetchone()
+        result = cursor.fetchone()[0]
 
-    return result[0] or 0
+    return result or 0
 
 
-def get_trades_by_symbol():
+def get_trades_by_symbol(batch_id):
     """
     Return trade statistics grouped by symbol.
     """
@@ -81,18 +108,17 @@ def get_trades_by_symbol():
                 COUNT(*) AS trade_count,
                 SUM(quantity) AS total_quantity
             FROM trades
+            WHERE batch_id = ?
             GROUP BY symbol
             ORDER BY total_quantity DESC
-        """)
+        """, (batch_id,))
 
-        results = cursor.fetchall()
-
-    return results
+        return cursor.fetchall()
 
 
-def get_largest_trade():
+def get_largest_trade(batch_id):
     """
-    Return the trade with the largest quantity.
+    Return the largest trade in a batch.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -108,16 +134,17 @@ def get_largest_trade():
                 trade_date,
                 trader
             FROM trades
+            WHERE batch_id = ?
             ORDER BY quantity DESC
             LIMIT 1
-        """)
+        """, (batch_id,))
 
         return cursor.fetchone()
 
 
-def export_trade_report():
+def export_trade_report(batch_id):
     """
-    Export all valid trades to a CSV file.
+    Export valid trades for a batch.
     """
 
     REPORTS_DIRECTORY.mkdir(
@@ -127,7 +154,7 @@ def export_trade_report():
 
     output_path = (
         REPORTS_DIRECTORY /
-        "daily_trade_report.csv"
+        f"batch_{batch_id}_trade_report.csv"
     )
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -142,9 +169,11 @@ def export_trade_report():
                 trade_date,
                 trader
             FROM trades
-            ORDER BY trade_date, trade_id
+            WHERE batch_id = ?
+            ORDER BY trade_id
             """,
-            connection
+            connection,
+            params=(batch_id,)
         )
 
     dataframe.to_csv(
@@ -155,10 +184,9 @@ def export_trade_report():
     return output_path
 
 
-def export_rejected_trade_report():
+def export_rejected_trade_report(batch_id):
     """
-    Export rejected trades and their reasons
-    to a CSV file.
+    Export rejected trades for a batch.
     """
 
     REPORTS_DIRECTORY.mkdir(
@@ -168,7 +196,7 @@ def export_rejected_trade_report():
 
     output_path = (
         REPORTS_DIRECTORY /
-        "rejected_trade_report.csv"
+        f"batch_{batch_id}_rejected_trade_report.csv"
     )
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -184,9 +212,11 @@ def export_rejected_trade_report():
                 trader,
                 rejection_reason
             FROM rejected_trades
+            WHERE batch_id = ?
             ORDER BY rejection_id
             """,
-            connection
+            connection,
+            params=(batch_id,)
         )
 
     dataframe.to_csv(

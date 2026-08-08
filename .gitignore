@@ -16,3 +16,6 @@ logs/
 
 # Environment variables
 .env
+
+# Generated reports
+reports/

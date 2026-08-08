@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from src.ingest import load_trades
 from src.validate import validate_trades
@@ -6,13 +7,16 @@ from src.process import categorize_trades
 
 from src.database import (
     create_database,
+    create_batch,
     save_valid_trades,
     save_rejected_trades,
-    show_all_trades,
-    show_rejected_trades
+    show_batch_trades,
+    show_batch_rejected_trades,
+    show_all_batches
 )
 
 from src.reports import (
+    get_batch_summary,
     get_total_trades,
     get_total_quantity,
     get_average_price,
@@ -26,17 +30,46 @@ from src.logger import setup_logger
 
 
 def main():
-    """
-    Run the financial trade processing pipeline.
-    """
 
     logger = setup_logger()
 
-    logger.info("Pipeline started.")
-
-    print("=" * 50)
+    print("=" * 60)
     print("Financial Trade Processing System")
-    print("=" * 50)
+    print("=" * 60)
+
+    # --------------------------------
+    # Command-line argument
+    # --------------------------------
+
+    if len(sys.argv) != 2:
+
+        print(
+            "\nUsage:"
+        )
+
+        print(
+            "python main.py <input-file>"
+        )
+
+        print(
+            "\nExamples:"
+        )
+
+        print(
+            "python main.py data/trades.csv"
+        )
+
+        print(
+            "python main.py data/trades_5000.xlsx"
+        )
+
+        return
+
+    input_file = sys.argv[1]
+
+    logger.info(
+        f"Processing file: {input_file}"
+    )
 
     try:
 
@@ -46,23 +79,21 @@ def main():
 
         create_database()
 
-        logger.info(
-            "Database initialized."
+        print(
+            "\nDatabase initialized."
         )
 
         # --------------------------------
-        # Step 2: Load CSV
+        # Step 2: Load data
         # --------------------------------
 
         trades = load_trades(
-            "data/trades.csv"
+            input_file
         )
 
-        logger.info(
-            f"CSV loaded: {len(trades)} trades."
+        print(
+            "\nInput file loaded successfully."
         )
-
-        print("\nCSV loaded successfully.\n")
 
         print(
             f"Rows    : {trades.shape[0]}"
@@ -72,31 +103,25 @@ def main():
             f"Columns : {trades.shape[1]}"
         )
 
-        print("\nColumn Names")
-
-        for column in trades.columns:
-            print(f"- {column}")
-
-        print("\nFirst Five Trades\n")
-
-        print(trades.head())
-
         # --------------------------------
         # Step 3: Validate
         # --------------------------------
 
-        validation_results = validate_trades(
-            trades
+        validation_results = (
+            validate_trades(trades)
         )
 
-        logger.info(
-            "Trade validation completed."
+        print(
+            "\nValidation Summary"
         )
 
-        print("\nValidation Summary")
-        print("-" * 40)
+        print(
+            "-" * 40
+        )
 
-        for check_name, result in validation_results.items():
+        for check_name, result in (
+            validation_results.items()
+        ):
 
             display_name = (
                 check_name
@@ -120,16 +145,13 @@ def main():
             )
         )
 
-        logger.info(
-            f"Valid trades: {len(valid_trades)}"
+        print(
+            "\nTrade Processing Summary"
         )
 
-        logger.info(
-            f"Invalid trades: {len(invalid_trades)}"
+        print(
+            "-" * 40
         )
-
-        print("\nTrade Processing Summary")
-        print("-" * 40)
 
         print(
             f"Valid Trades   : "
@@ -142,91 +164,161 @@ def main():
         )
 
         # --------------------------------
-        # Step 5: Save valid trades
+        # Step 5: Create batch
         # --------------------------------
 
-        save_valid_trades(
+        batch_id = create_batch(
+            source_file=input_file,
+            total_records=len(trades),
+            valid_records=len(valid_trades),
+            invalid_records=len(invalid_trades)
+        )
+
+        print(
+            f"\nBatch ID: {batch_id}"
+        )
+
+        logger.info(
+            f"Created batch {batch_id}"
+        )
+
+        # --------------------------------
+        # Step 6: Save valid trades
+        # --------------------------------
+
+        inserted_valid = save_valid_trades(
+            batch_id,
             valid_trades
         )
 
-        logger.info(
-            "Valid trades processed."
+        print(
+            f"Valid trades stored: "
+            f"{inserted_valid}"
         )
 
         # --------------------------------
-        # Step 6: Save rejected trades
+        # Step 7: Save rejected trades
         # --------------------------------
 
-        save_rejected_trades(
-            invalid_trades,
-            validation_results
+        inserted_rejected = (
+            save_rejected_trades(
+                batch_id,
+                invalid_trades,
+                validation_results
+            )
         )
-
-        logger.info(
-            "Rejected trades processed."
-        )
-
-        # --------------------------------
-        # Step 7: Display database
-        # --------------------------------
-
-        show_all_trades()
-
-        show_rejected_trades()
-
-        # --------------------------------
-        # Step 8: SQL Reports
-        # --------------------------------
-
-        print("\n")
-        print("=" * 50)
-        print("SQL REPORTS")
-        print("=" * 50)
-
-        total_trades = get_total_trades()
 
         print(
-            f"\nTotal Trades: "
+            f"Rejected records stored: "
+            f"{inserted_rejected}"
+        )
+
+        # --------------------------------
+        # Step 8: Display batch data
+        # --------------------------------
+
+        show_batch_trades(
+            batch_id
+        )
+
+        show_batch_rejected_trades(
+            batch_id
+        )
+
+        # --------------------------------
+        # Step 9: Batch reports
+        # --------------------------------
+
+        print(
+            "\nBatch Report"
+        )
+
+        print(
+            "=" * 60
+        )
+
+        summary = get_batch_summary(
+            batch_id
+        )
+
+        print(
+            summary.to_string(
+                index=False
+            )
+        )
+
+        # --------------------------------
+        # Step 10: SQL statistics
+        # --------------------------------
+
+        total_trades = get_total_trades(
+            batch_id
+        )
+
+        total_quantity = get_total_quantity(
+            batch_id
+        )
+
+        average_price = get_average_price(
+            batch_id
+        )
+
+        print(
+            f"\nTotal Trades   : "
             f"{total_trades}"
         )
 
-        total_quantity = get_total_quantity()
-
         print(
-            f"Total Quantity: "
+            f"Total Quantity : "
             f"{total_quantity}"
         )
 
-        average_price = get_average_price()
-
         print(
-            f"Average Price: "
+            f"Average Price  : "
             f"{average_price:.2f}"
         )
 
-        trades_by_symbol = (
-            get_trades_by_symbol()
+        # --------------------------------
+        # Step 11: Symbol report
+        # --------------------------------
+
+        print(
+            "\nTrades by Symbol"
         )
 
-        print("\nTrades by Symbol")
-        print("-" * 40)
+        print(
+            "-" * 40
+        )
 
-        for row in trades_by_symbol:
+        for row in get_trades_by_symbol(
+            batch_id
+        ):
 
             symbol = row[0]
-            trade_count = row[1]
-            total_quantity = row[2]
+            count = row[1]
+            quantity = row[2]
 
             print(
                 f"{symbol:<10}"
-                f"Trades: {trade_count:<5}"
-                f"Quantity: {total_quantity}"
+                f"Trades: {count:<5}"
+                f"Quantity: {quantity}"
             )
 
-        largest_trade = get_largest_trade()
+        # --------------------------------
+        # Step 12: Largest trade
+        # --------------------------------
 
-        print("\nLargest Trade")
-        print("-" * 40)
+        largest_trade = get_largest_trade(
+            batch_id
+        )
+
+        print(
+            "\nLargest Trade"
+        )
+
+        print(
+            "-" * 40
+        )
 
         if largest_trade:
 
@@ -263,41 +355,48 @@ def main():
                 f"Trader   : {trader}"
             )
 
-        else:
-
-            print("No trades found.")
-
         # --------------------------------
-        # Step 9: Export CSV reports
+        # Step 13: Export reports
         # --------------------------------
 
         trade_report = (
-            export_trade_report()
+            export_trade_report(
+                batch_id
+            )
         )
 
         rejected_report = (
-            export_rejected_trade_report()
+            export_rejected_trade_report(
+                batch_id
+            )
         )
 
-        print("\nCSV Reports")
-        print("-" * 40)
+        print(
+            "\nReports"
+        )
 
         print(
-            f"Trade Report     : "
+            "-" * 40
+        )
+
+        print(
+            f"Trade Report    : "
             f"{trade_report}"
         )
 
         print(
-            f"Rejected Report  : "
+            f"Rejected Report : "
             f"{rejected_report}"
         )
 
-        logger.info(
-            "CSV reports exported."
-        )
+        # --------------------------------
+        # Step 14: Processing history
+        # --------------------------------
+
+        show_all_batches()
 
         logger.info(
-            "Pipeline completed successfully."
+            f"Batch {batch_id} completed."
         )
 
         print(

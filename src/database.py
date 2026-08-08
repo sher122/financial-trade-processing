@@ -9,10 +9,8 @@ DATABASE_PATH = Path("database/trades.db")
 
 def create_database():
     """
-    Create the SQLite database and required tables.
+    Create the database and all required tables.
     """
-
-    print("Creating database...")
 
     DATABASE_PATH.parent.mkdir(
         parents=True,
@@ -24,17 +22,43 @@ def create_database():
         cursor = connection.cursor()
 
         # --------------------------------
+        # Batches
+        # --------------------------------
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batches (
+                batch_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_file TEXT NOT NULL,
+                processed_at TEXT NOT NULL,
+                total_records INTEGER NOT NULL,
+                valid_records INTEGER NOT NULL,
+                invalid_records INTEGER NOT NULL
+            )
+        """)
+
+        # --------------------------------
         # Valid trades
         # --------------------------------
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS trades (
-                trade_id TEXT PRIMARY KEY,
+                batch_id INTEGER NOT NULL,
+                trade_id TEXT NOT NULL,
                 symbol TEXT NOT NULL,
                 quantity INTEGER NOT NULL,
                 price REAL NOT NULL,
                 trade_date TEXT NOT NULL,
-                trader TEXT NOT NULL
+                trader TEXT NOT NULL,
+
+                PRIMARY KEY (
+                    batch_id,
+                    trade_id
+                ),
+
+                FOREIGN KEY (
+                    batch_id
+                )
+                REFERENCES batches(batch_id)
             )
         """)
 
@@ -45,35 +69,85 @@ def create_database():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS rejected_trades (
                 rejection_id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                batch_id INTEGER NOT NULL,
                 trade_id TEXT NOT NULL,
                 symbol TEXT,
                 quantity INTEGER,
                 price REAL,
                 trade_date TEXT,
                 trader TEXT,
+
                 rejection_reason TEXT NOT NULL,
-                UNIQUE(trade_id, rejection_reason)
+
+                FOREIGN KEY (
+                    batch_id
+                )
+                REFERENCES batches(batch_id)
             )
         """)
 
         connection.commit()
 
-    print("Database created successfully.")
 
-
-def save_valid_trades(df: pd.DataFrame):
+def create_batch(
+    source_file,
+    total_records,
+    valid_records,
+    invalid_records
+):
     """
-    Save valid trades into the SQLite database.
+    Create a new processing batch.
 
-    Existing trade IDs are skipped.
+    Returns the generated batch ID.
+    """
+
+    from datetime import datetime
+
+    processed_at = datetime.now().isoformat(
+        timespec="seconds"
+    )
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            INSERT INTO batches (
+                source_file,
+                processed_at,
+                total_records,
+                valid_records,
+                invalid_records
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            source_file,
+            processed_at,
+            total_records,
+            valid_records,
+            invalid_records
+        ))
+
+        batch_id = cursor.lastrowid
+
+        connection.commit()
+
+    return batch_id
+
+
+def save_valid_trades(
+    batch_id,
+    df: pd.DataFrame
+):
+    """
+    Save valid trades belonging to a batch.
     """
 
     if df.empty:
-        print("\nNo valid trades to save.")
-        return
+        return 0
 
     inserted_count = 0
-    skipped_count = 0
 
     with sqlite3.connect(DATABASE_PATH) as connection:
 
@@ -81,61 +155,49 @@ def save_valid_trades(df: pd.DataFrame):
 
         for _, trade in df.iterrows():
 
-            try:
+            cursor.execute("""
+                INSERT INTO trades (
+                    batch_id,
+                    trade_id,
+                    symbol,
+                    quantity,
+                    price,
+                    trade_date,
+                    trader
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                batch_id,
+                trade["trade_id"],
+                trade["symbol"],
+                trade["quantity"],
+                trade["price"],
+                trade["trade_date"],
+                trade["trader"]
+            ))
 
-                cursor.execute("""
-                    INSERT INTO trades (
-                        trade_id,
-                        symbol,
-                        quantity,
-                        price,
-                        trade_date,
-                        trader
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    trade["trade_id"],
-                    trade["symbol"],
-                    trade["quantity"],
-                    trade["price"],
-                    trade["trade_date"],
-                    trade["trader"]
-                ))
-
-                inserted_count += 1
-
-            except sqlite3.IntegrityError:
-
-                skipped_count += 1
+            inserted_count += 1
 
         connection.commit()
 
-    print(
-        f"\nInserted trades : {inserted_count}"
-    )
-
-    print(
-        f"Skipped trades  : {skipped_count}"
-    )
+    return inserted_count
 
 
 def save_rejected_trades(
+    batch_id,
     invalid_trades: pd.DataFrame,
     validation_results: dict
 ):
     """
-    Save rejected trades and their reasons.
+    Save rejected trades belonging to a batch.
 
-    The same trade/reason combination
-    will not be inserted twice.
+    Every rejected input row is preserved.
     """
 
     if invalid_trades.empty:
-        print("\nNo rejected trades to save.")
-        return
+        return 0
 
     inserted_count = 0
-    skipped_count = 0
 
     with sqlite3.connect(DATABASE_PATH) as connection:
 
@@ -159,51 +221,63 @@ def save_rejected_trades(
 
             for rejection_reason in reasons:
 
-                try:
-
-                    cursor.execute("""
-                        INSERT INTO rejected_trades (
-                            trade_id,
-                            symbol,
-                            quantity,
-                            price,
-                            trade_date,
-                            trader,
-                            rejection_reason
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        trade["trade_id"],
-                        trade["symbol"],
-                        trade["quantity"],
-                        trade["price"],
-                        trade["trade_date"],
-                        trade["trader"],
+                cursor.execute("""
+                    INSERT INTO rejected_trades (
+                        batch_id,
+                        trade_id,
+                        symbol,
+                        quantity,
+                        price,
+                        trade_date,
+                        trader,
                         rejection_reason
-                    ))
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    batch_id,
+                    trade["trade_id"],
+                    trade["symbol"],
+                    trade["quantity"],
+                    trade["price"],
+                    trade["trade_date"],
+                    trade["trader"],
+                    rejection_reason
+                ))
 
-                    inserted_count += 1
-
-                except sqlite3.IntegrityError:
-
-                    skipped_count += 1
+                inserted_count += 1
 
         connection.commit()
 
-    print(
-        f"\nInserted rejected trades : "
-        f"{inserted_count}"
-    )
-
-    print(
-        f"Skipped rejected trades  : "
-        f"{skipped_count}"
-    )
+    return inserted_count
 
 
-def show_all_trades():
+def get_batch(batch_id):
     """
-    Display all valid trades.
+    Return information about a specific batch.
+    """
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            SELECT
+                batch_id,
+                source_file,
+                processed_at,
+                total_records,
+                valid_records,
+                invalid_records
+            FROM batches
+            WHERE batch_id = ?
+        """, (batch_id,))
+
+        return cursor.fetchone()
+
+
+def show_batch_trades(batch_id):
+    """
+    Display valid trades for a batch.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -219,25 +293,26 @@ def show_all_trades():
                 trade_date,
                 trader
             FROM trades
-            ORDER BY trade_date, trade_id
-        """)
+            WHERE batch_id = ?
+            ORDER BY trade_id
+        """, (batch_id,))
 
         rows = cursor.fetchall()
 
-    print("\nTrades Stored in Database")
-    print("-" * 60)
+    print("\nTrades for Batch", batch_id)
+    print("-" * 70)
 
     if not rows:
-        print("No trades found.")
+        print("No valid trades found.")
         return
 
     for row in rows:
         print(row)
 
 
-def show_rejected_trades():
+def show_batch_rejected_trades(batch_id):
     """
-    Display all rejected trades.
+    Display rejected trades for a batch.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -250,18 +325,55 @@ def show_rejected_trades():
                 symbol,
                 quantity,
                 price,
+                trade_date,
+                trader,
                 rejection_reason
             FROM rejected_trades
+            WHERE batch_id = ?
             ORDER BY rejection_id
+        """, (batch_id,))
+
+        rows = cursor.fetchall()
+
+    print("\nRejected Trades for Batch", batch_id)
+    print("-" * 70)
+
+    if not rows:
+        print("No rejected trades found.")
+        return
+
+    for row in rows:
+        print(row)
+
+
+def show_all_batches():
+    """
+    Display all processed batches.
+    """
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            SELECT
+                batch_id,
+                source_file,
+                processed_at,
+                total_records,
+                valid_records,
+                invalid_records
+            FROM batches
+            ORDER BY batch_id
         """)
 
         rows = cursor.fetchall()
 
-    print("\nRejected Trades")
-    print("-" * 60)
+    print("\nProcessing History")
+    print("-" * 80)
 
     if not rows:
-        print("No rejected trades found.")
+        print("No batches found.")
         return
 
     for row in rows:
