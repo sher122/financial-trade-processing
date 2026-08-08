@@ -1,0 +1,3 @@
+trade_id,symbol,quantity,price,trade_date,trader
+T002,MSFT,50,420.75,2026-08-01,Bob
+T005,TSLA,25,310.4,2026-08-02,Eve

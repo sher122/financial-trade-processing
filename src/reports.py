@@ -1,11 +1,17 @@
 import sqlite3
+from pathlib import Path
+
+import pandas as pd
 
 from src.database import DATABASE_PATH
 
 
+REPORTS_DIRECTORY = Path("reports")
+
+
 def get_total_trades():
     """
-    Return the total number of trades in the database.
+    Return the total number of valid trades.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -24,7 +30,7 @@ def get_total_trades():
 
 def get_total_quantity():
     """
-    Return the total quantity of all trades.
+    Return total quantity of valid trades.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -43,7 +49,7 @@ def get_total_quantity():
 
 def get_average_price():
     """
-    Return the average trade price.
+    Return average trade price.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -62,7 +68,7 @@ def get_average_price():
 
 def get_trades_by_symbol():
     """
-    Return trade count and total quantity grouped by symbol.
+    Return trade statistics grouped by symbol.
     """
 
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -106,6 +112,86 @@ def get_largest_trade():
             LIMIT 1
         """)
 
-        result = cursor.fetchone()
+        return cursor.fetchone()
 
-    return result
+
+def export_trade_report():
+    """
+    Export all valid trades to a CSV file.
+    """
+
+    REPORTS_DIRECTORY.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    output_path = (
+        REPORTS_DIRECTORY /
+        "daily_trade_report.csv"
+    )
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+
+        dataframe = pd.read_sql_query(
+            """
+            SELECT
+                trade_id,
+                symbol,
+                quantity,
+                price,
+                trade_date,
+                trader
+            FROM trades
+            ORDER BY trade_date, trade_id
+            """,
+            connection
+        )
+
+    dataframe.to_csv(
+        output_path,
+        index=False
+    )
+
+    return output_path
+
+
+def export_rejected_trade_report():
+    """
+    Export rejected trades and their reasons
+    to a CSV file.
+    """
+
+    REPORTS_DIRECTORY.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    output_path = (
+        REPORTS_DIRECTORY /
+        "rejected_trade_report.csv"
+    )
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+
+        dataframe = pd.read_sql_query(
+            """
+            SELECT
+                trade_id,
+                symbol,
+                quantity,
+                price,
+                trade_date,
+                trader,
+                rejection_reason
+            FROM rejected_trades
+            ORDER BY rejection_id
+            """,
+            connection
+        )
+
+    dataframe.to_csv(
+        output_path,
+        index=False
+    )
+
+    return output_path

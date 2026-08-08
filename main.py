@@ -17,7 +17,9 @@ from src.reports import (
     get_total_quantity,
     get_average_price,
     get_trades_by_symbol,
-    get_largest_trade
+    get_largest_trade,
+    export_trade_report,
+    export_rejected_trade_report
 )
 
 from src.logger import setup_logger
@@ -161,7 +163,7 @@ def main():
         )
 
         logger.info(
-            "Rejected trades saved."
+            "Rejected trades processed."
         )
 
         # --------------------------------
@@ -265,8 +267,33 @@ def main():
 
             print("No trades found.")
 
+        # --------------------------------
+        # Step 9: Export CSV reports
+        # --------------------------------
+
+        trade_report = (
+            export_trade_report()
+        )
+
+        rejected_report = (
+            export_rejected_trade_report()
+        )
+
+        print("\nCSV Reports")
+        print("-" * 40)
+
+        print(
+            f"Trade Report     : "
+            f"{trade_report}"
+        )
+
+        print(
+            f"Rejected Report  : "
+            f"{rejected_report}"
+        )
+
         logger.info(
-            "Reports generated."
+            "CSV reports exported."
         )
 
         logger.info(
