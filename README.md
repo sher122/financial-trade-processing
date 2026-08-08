@@ -24,8 +24,8 @@ This project implements a simplified version of that workflow.
 ---
 
 ## Features
-Trade Validation
-
+##Trade Validation
+---
 The system checks incoming trades for common data-quality problems.
 
 Current validation checks include:
@@ -36,10 +36,10 @@ Negative prices
 Missing values
 
 Invalid trades are separated from valid trades.
+---
 
-
-Batch Processing
-
+##Batch Processing
+---
 Each input file is treated as a processing batch.
 
 Every batch records:
@@ -50,9 +50,9 @@ Processing timestamp
 Total records
 Valid records
 Invalid records
-
-SQLite Database
-
+---
+##SQLite Database
+---
 The system uses SQLite for persistent storage.
 
 The database contains three main tables:
@@ -64,23 +64,17 @@ batches
 
 Stores information about each processing run.
 
-trades
-
-Stores valid trades.
-
 The primary key is:
 
 (batch_id, trade_id)
 
 This allows the same trade ID to appear in different processing batches.
 
-rejected_trades
-
-Stores invalid trades together with their rejection reason.
+---
 
 
-
-Technologies
+##Technologies
+---
 Python 3.9
 Pandas
 SQLite
@@ -88,6 +82,4 @@ SQL
 Pytest
 Git
 PowerShell
-
-### CSV Ingestion
-trader
+---
