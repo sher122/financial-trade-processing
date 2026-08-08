@@ -1,11 +1,17 @@
+import logging
+
 from src.ingest import load_trades
 from src.validate import validate_trades
 from src.process import categorize_trades
+
 from src.database import (
     create_database,
     save_valid_trades,
-    show_all_trades
+    save_rejected_trades,
+    show_all_trades,
+    show_rejected_trades
 )
+
 from src.reports import (
     get_total_trades,
     get_total_quantity,
@@ -14,11 +20,17 @@ from src.reports import (
     get_largest_trade
 )
 
+from src.logger import setup_logger
+
 
 def main():
     """
     Run the financial trade processing pipeline.
     """
+
+    logger = setup_logger()
+
+    logger.info("Pipeline started.")
 
     print("=" * 50)
     print("Financial Trade Processing System")
@@ -32,12 +44,20 @@ def main():
 
         create_database()
 
+        logger.info(
+            "Database initialized."
+        )
+
         # --------------------------------
-        # Step 2: Load trade data
+        # Step 2: Load CSV
         # --------------------------------
 
         trades = load_trades(
             "data/trades.csv"
+        )
+
+        logger.info(
+            f"CSV loaded: {len(trades)} trades."
         )
 
         print("\nCSV loaded successfully.\n")
@@ -60,11 +80,15 @@ def main():
         print(trades.head())
 
         # --------------------------------
-        # Step 3: Validate trades
+        # Step 3: Validate
         # --------------------------------
 
         validation_results = validate_trades(
             trades
+        )
+
+        logger.info(
+            "Trade validation completed."
         )
 
         print("\nValidation Summary")
@@ -84,7 +108,7 @@ def main():
             )
 
         # --------------------------------
-        # Step 4: Categorize trades
+        # Step 4: Categorize
         # --------------------------------
 
         valid_trades, invalid_trades = (
@@ -92,6 +116,14 @@ def main():
                 trades,
                 validation_results
             )
+        )
+
+        logger.info(
+            f"Valid trades: {len(valid_trades)}"
+        )
+
+        logger.info(
+            f"Invalid trades: {len(invalid_trades)}"
         )
 
         print("\nTrade Processing Summary")
@@ -108,28 +140,28 @@ def main():
         )
 
         # --------------------------------
-        # Step 5: Display invalid trades
-        # --------------------------------
-
-        print("\nInvalid Trades")
-        print("-" * 40)
-
-        if invalid_trades.empty:
-
-            print(
-                "No invalid trades found."
-            )
-
-        else:
-
-            print(invalid_trades)
-
-        # --------------------------------
-        # Step 6: Save valid trades
+        # Step 5: Save valid trades
         # --------------------------------
 
         save_valid_trades(
             valid_trades
+        )
+
+        logger.info(
+            "Valid trades processed."
+        )
+
+        # --------------------------------
+        # Step 6: Save rejected trades
+        # --------------------------------
+
+        save_rejected_trades(
+            invalid_trades,
+            validation_results
+        )
+
+        logger.info(
+            "Rejected trades saved."
         )
 
         # --------------------------------
@@ -138,16 +170,16 @@ def main():
 
         show_all_trades()
 
+        show_rejected_trades()
+
         # --------------------------------
-        # Step 8: Generate SQL reports
+        # Step 8: SQL Reports
         # --------------------------------
 
         print("\n")
         print("=" * 50)
         print("SQL REPORTS")
         print("=" * 50)
-
-        # Total trades
 
         total_trades = get_total_trades()
 
@@ -156,8 +188,6 @@ def main():
             f"{total_trades}"
         )
 
-        # Total quantity
-
         total_quantity = get_total_quantity()
 
         print(
@@ -165,16 +195,12 @@ def main():
             f"{total_quantity}"
         )
 
-        # Average price
-
         average_price = get_average_price()
 
         print(
             f"Average Price: "
             f"{average_price:.2f}"
         )
-
-        # Trades by symbol
 
         trades_by_symbol = (
             get_trades_by_symbol()
@@ -194,8 +220,6 @@ def main():
                 f"Trades: {trade_count:<5}"
                 f"Quantity: {total_quantity}"
             )
-
-        # Largest trade
 
         largest_trade = get_largest_trade()
 
@@ -241,11 +265,23 @@ def main():
 
             print("No trades found.")
 
+        logger.info(
+            "Reports generated."
+        )
+
+        logger.info(
+            "Pipeline completed successfully."
+        )
+
         print(
             "\nPipeline completed successfully."
         )
 
     except Exception as error:
+
+        logger.exception(
+            "Pipeline failed."
+        )
 
         print(
             f"\nPipeline Failed: {error}"
