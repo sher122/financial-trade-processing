@@ -46,7 +46,11 @@ trades table        rejected_trades table
 ```
 
 ---
+## Why This Project
 
+Financial institutions process large volumes of trade records and need reliable controls around data ingestion, validation, storage, and auditability before records move to downstream systems. This project simulates that ingestion-and-control layer by processing trade files as independent batches, validating data-quality rules, separating valid and rejected records, persisting results in a relational database, and generating reports for review.
+---
+---
 ## Features
 
 ### CSV Ingestion
@@ -130,7 +134,25 @@ Total Records  : 30
 Valid Records  : 30
 Invalid Records: 0
 ```
+```
+## Example SQL Queries
 
+The database layer uses SQL directly through Python's `sqlite3` module.
+### Retrieve Trades for a Batch
+The system retrieves valid trades belonging to a specific processing batch:
+
+```sql
+SELECT
+    trade_id,
+    symbol,
+    quantity,
+    price,
+    trade_date,
+    trader
+FROM trades
+WHERE batch_id = ?
+ORDER BY trade_id;
+```
 Batch IDs allow multiple input files to be processed while keeping their results separate.
 
 ---
@@ -266,11 +288,22 @@ Missing Values            4
 Valid Trades   : 4978
 Invalid Trades : 22
 ```
+### Example Rejected Trade Report
+
+The pipeline generates a rejected-trade CSV containing the original trade information and the reason the record failed validation.
+
+Example:
+
+```csv
+trade_id,symbol,quantity,price,trade_date,trader,rejection_reason
+T001,AAPL,100,185.5,2026-08-01,Alice,DUPLICATES
+T003,GOOG,-20,172.3,2026-08-01,Charlie,NEGATIVE QUANTITY
+T004,NVDA,10,-950.0,2026-08-01,David,NEGATIVE PRICE
 
 The valid and rejected records were persisted separately.
 
 ---
-
+```
 ## Project Structure
 
 ```text
