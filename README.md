@@ -53,8 +53,6 @@ Results are stored in a SQLite database with three tables:
 
 The primary key of `trades` is `(batch_id, trade_id)`, so the same trade ID can appear in different batches without conflict.
 
-<!-- FILL IN: confirm the table names and key columns above match your code. -->
-
 ## Technologies
 
 Python 3.9, pandas, SQLite, SQL, pytest, Git
@@ -70,8 +68,6 @@ financial-trade-processing/
 ├── requirements.txt
 └── README.md
 ```
-
-<!-- FILL IN: list the actual files inside src/ and tests/ (one line each). -->
 
 ## Installation
 
@@ -89,37 +85,17 @@ Run the pipeline:
 python main.py
 ```
 
-<!-- FILL IN: how does main.py choose the input file? Show the exact command,
-     for example: python main.py data/trades_sample.csv -->
-
-### Input format
-
-The input CSV is expected to contain these columns:
-
-```
-<!-- FILL IN: paste the header row of your sample CSV, e.g. trade_id,symbol,quantity,price -->
-```
-
-### Sample output
-
-```
-<!-- FILL IN: paste a short real run of main.py, e.g. batch ID, total / valid / invalid counts -->
-```
-
 ## Running the tests
 
 ```bash
 python -m pytest -v
 ```
 
-<!-- FILL IN: state the number of tests, e.g. "The suite contains N tests covering ..." -->
-
 The tests cover:
 
 - Duplicate trade ID detection
 - Negative quantity and price handling
 - Missing value handling
-- <!-- FILL IN: any other behavior your tests check -->
 
 ## Example queries
 
@@ -133,18 +109,10 @@ FROM rejected_trades
 GROUP BY batch_id;
 ```
 
-<!-- FILL IN: adjust column names to match your schema, test the query, then keep or delete it. -->
-
 ## Limitations
 
 - Validation covers a fixed set of checks (duplicates, negative values, missing values).
-- <!-- FILL IN: e.g. "Input is read from local CSV files only." -->
-- <!-- FILL IN: any other honest limitation -->
 
-## Future improvements
-
-- <!-- FILL IN: e.g. additional validation rules such as valid symbol lists or date checks -->
-- <!-- FILL IN: e.g. summary report across batches -->
 
 ## Disclaimer
 
